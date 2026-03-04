@@ -1,0 +1,1 @@
+# Seltrad-vortyp
