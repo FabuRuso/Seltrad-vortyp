@@ -24,6 +24,8 @@ namespace Seltrad {
 			float
 				InvPerX,
 				InvPerY;
+
+			mutable Helpfulness::Bound<Ray> Rays;
 		public:
 			Player(
 				Math::Vector _Pos,
@@ -36,7 +38,8 @@ namespace Seltrad {
 				Wideness{ _ScreenWideness }, Highness{ _ScreenHighness },
 				PerX{ _ScreenResX }, PerY{ _SCreebResY },
 				InvPerX{ 1.f / PerX }, InvPerY{ 1.f / PerY },
-				HorDif{ Math::cotf(Wideness * 0.5f) }, VerDif{ Math::cotf(Highness * 0.5f) }
+				HorDif{ Math::cotf(Wideness * 0.5f) }, VerDif{ Math::cotf(Highness * 0.5f) },
+				Rays{ { (size_t)PerX * PerY } }
 			{
 
 			}
@@ -55,16 +58,14 @@ namespace Seltrad {
 				return View;
 			}
 
-			Helpfulness::Bound<Ray> CastRays(void) const {
+			Helpfulness::Bound<Ray>& CastRays(void) const {
 				Math::Vector
-					SideView = Math::Vector::cross(View, Math::Vector::Y_plus()).normalize(),
-					UpView = Math::Vector::cross(SideView, View).normalize();
+					SideView = Math::Vector::cross(View, Math::Vector::Y_plus()),
+					UpView = Math::Vector::cross(SideView, View);
 				Math::Vector
 					Center = View + Position;
 				Math::Vector
 					LeftBottom = Center - VerDif * UpView - HorDif * SideView;
-
-				Helpfulness::Bound<Ray> Rays{ (size_t)PerX * PerY };
 				for (size_t iY = 0; iY < PerY; iY++)
 					for (size_t iX = 0; iX < PerX; iX++)
 						Rays[iY * PerX + iX] =

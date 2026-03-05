@@ -52,7 +52,11 @@ namespace Seltrad {
 			Cube(void) = delete;
 
 			Math::Vector getNormAt(const Math::Vector& _Point) const override {
-				auto LocalP = (Rotation.conjugate() * (_Point - Position) * Rotation).N;
+				Math::Vector LocalP;
+				if (Rotation != Math::Quaternion::ZeroRotation())
+					LocalP = (Rotation.conjugate() * (_Point - Position) * Rotation).N;
+				else
+					LocalP = _Point - Position;
 				Math::Vector Signs = {
 					signbit(LocalP.Xc) ? -1.f : 1.f,
 					signbit(LocalP.Yc) ? -1.f : 1.f,
@@ -70,26 +74,42 @@ namespace Seltrad {
 					Norm = { 0,Signs.Yc,0 };
 				else
 					Norm = { 0,0,Signs.Zc };
-
-				return (Rotation * Norm * Rotation.conjugate()).N;
+				if (Rotation != Math::Quaternion{ 0,0,0 })
+					return (Rotation * Norm * Rotation.conjugate()).N;
+				else
+					return Norm;
 			}
 
 			bool CheckLocalPointVolume(const Math::Vector& _Point) const override {
-				float a = Math::fmaxf(
-					Math::fabsf(_Point.Xc),
-					Math::fabsf(_Point.Yc));
-				float b = Math::fmaxf(
-					a,
-					Math::fabsf(_Point.Zc));
-				return
-					b
-					<= HalfSide + PRECISION__;
+				Math::Vector LocalP;
+				if (_Point.Xc < 0)
+					LocalP.Xc = -_Point.Xc;
+				else
+					LocalP.Xc = _Point.Xc;
+				if (_Point.Yc < 0)
+					LocalP.Yc = -_Point.Yc;
+				else
+					LocalP.Yc = _Point.Yc;
+				if (_Point.Zc < 0)
+					LocalP.Zc = -_Point.Zc;
+				else
+					LocalP.Zc = _Point.Zc;
+				if ((LocalP.Xc > LocalP.Yc) and (LocalP.Xc > LocalP.Zc))
+					return LocalP.Xc <= HalfSide + PRECISION__;
+				if (LocalP.Yc > LocalP.Zc)
+					return LocalP.Yc <= HalfSide + PRECISION__;
+				else
+					return LocalP.Zc <= HalfSide + PRECISION__;
 			}
 
 			Helpfulness::Bound<Math::Vector> getCrossPoints(const Ray& _BaseRay) const override {
-				Ray LocalRay = _BaseRay.relateTo(Position, Rotation);
+				Ray LocalRay;
+				if (Rotation != Math::Quaternion::ZeroRotation())
+					LocalRay = _BaseRay.relateTo(Position, Rotation);
+				else
+					LocalRay = { _BaseRay.getPos() - Position,_BaseRay.getDir() };
 
-				Helpfulness::Bound<float> RawPoints{ 6 };
+				float RawPoints[6];
 
 				Math::Vector RayDir = LocalRay.getDir();
 				Math::Vector RayPos = LocalRay.getPos();

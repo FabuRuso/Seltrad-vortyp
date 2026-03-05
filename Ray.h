@@ -20,6 +20,15 @@ namespace Seltrad {
 			{
 
 			}
+			Ray(const Ray& _Other) : Position{ _Other.getPos() }, Direction{ _Other.getDir() } {
+
+			}
+
+			Ray& operator=(const Ray& _Other) {
+				Position = _Other.getPos();
+				Direction = _Other.getDir();
+				return *this;
+			}
 
 			Ray& rotateX(float _Rads) {
 				float

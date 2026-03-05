@@ -9,7 +9,10 @@ namespace Seltrad {
 			Player MainPlayer;
 			Primitive** Objects = nullptr;
 			size_t Amount = 0;
-			static constexpr float mindepth = 10000;
+			static constexpr float mindepth = 1000000;
+
+			static constexpr size_t CountOfTasks = 32;
+			mutable std::thread* RayThreads[CountOfTasks];
 
 			Volumizer() :
 				MainPlayer{
@@ -17,8 +20,8 @@ namespace Seltrad {
 					{1.5f,0.5f,1.5f},
 					Math::PiDIV3,
 					Math::PiDIV2,
-					100,
-					100}
+					800,
+					400}
 			{
 				AddObject(new Cube(
 					{ 10.f, 0.f, 0.f },
@@ -40,6 +43,14 @@ namespace Seltrad {
 					0.4f,
 					{ 0,0,0 }
 				));
+
+				for (float x = -2; x < 2; x++)
+					for (float z = -2; z < 2; z++)
+						AddObject(new Sphere(
+							{ x - 10, 1, z },
+							0.4,
+							{ 0,0,0 }
+						));
 			}
 
 			Primitive* AddObject(Primitive* _Object) {
@@ -53,7 +64,7 @@ namespace Seltrad {
 				return Objects[Amount - 1];
 			}
 
-			Helpfulness::Bound<INT::uint32t> GetColoredScheme(void) {
+			Helpfulness::Bound<INT::uint32t> GetColoredScheme(void) const {
 				Helpfulness::Bound<float> Brightness = GetBrightScheme();
 				Helpfulness::Bound<INT::uint32t> Scheme{ Brightness.length() };
 
@@ -66,9 +77,38 @@ namespace Seltrad {
 				return Scheme;
 			}
 
-			Helpfulness::Bound<float> GetBrightScheme(void) {
+			void CheckRayByThread(const Ray* _Ray, float* _SchemeValue, const Math::Vector& _LightPoint) const {
+				float mins = mindepth;
+				Math::Vector minPoint{};
+				Primitive* minObj = nullptr;
+				for (size_t iObj = 0; iObj < Amount; iObj++)
+				{
+					Helpfulness::Bound<Math::Vector> Cross = Objects[iObj]->getCrossPoints(*_Ray);
+					for (INT::uint8t i = 0; i < Cross.length(); i++)
+					{
+						float l = (Cross[i] - MainPlayer.getPos()).SQUARED_LENGTH_();
+						if (mins > l)
+						{
+							mins = l;
+							minPoint = Cross[i];
+							minObj = Objects[iObj];
+						}
+					}
+				}
+				if (mins == mindepth)
+					*_SchemeValue = 0;
+				else
+				{
+					float dist = (_LightPoint - minPoint).SQUARED_LENGTH_();
+					*_SchemeValue = Math::exp2f(-dist * 0.05) * (Math::Vector::dot(minObj->getNormAt(minPoint), (_LightPoint - minPoint).normalize()) + 1) * 0.5f;
+				}
+			}
+
+			/*Helpfulness::Bound<float> GetBrightScheme(void) const {
 				Helpfulness::Bound<Ray> Rays = MainPlayer.CastRays();
 				Helpfulness::Bound<float> Scheme{ Rays.length() };
+
+				Math::Vector LightPoint = { -10, -1, 0 };
 
 				for (size_t iRay = 0; iRay < Rays.length(); iRay++) {
 					float mins = mindepth;
@@ -79,7 +119,7 @@ namespace Seltrad {
 						Helpfulness::Bound<Math::Vector> Cross = Objects[iObj]->getCrossPoints(Rays[iRay]);
 						for (INT::uint8t i = 0; i < Cross.length(); i++)
 						{
-							float l = (Cross[i] - MainPlayer.getPos()).length();
+							float l = (Cross[i] - MainPlayer.getPos()).SQUARED_LENGTH_();
 							if (mins > l)
 							{
 								mins = l;
@@ -91,7 +131,36 @@ namespace Seltrad {
 					if (mins == mindepth)
 						Scheme[iRay] = 0;
 					else
-						Scheme[iRay] = Math::powf(Math::exp2f(-mins / 10) * Math::fmaxf(0.06, Math::Vector::dot(minObj->getNormAt(minPoint), (Math::Vector{ 5, 1, 3 } - minPoint).normalize())), 1);
+					{
+						float dist = (LightPoint - minPoint).SQUARED_LENGTH_();
+						Scheme[iRay] = Math::exp2f(-dist * 0.02) * (Math::Vector::dot(minObj->getNormAt(minPoint), (LightPoint - minPoint).normalize()) + 1) * 0.5f;
+					}
+				}
+
+				return Scheme;
+			}*/
+
+			Helpfulness::Bound<float> GetBrightScheme(void) const {
+				Helpfulness::Bound<Ray>& Rays = MainPlayer.CastRays();
+				size_t Amount = Rays.length();
+				Helpfulness::Bound<float> Scheme{ Amount };
+
+				Math::Vector LightPoint = { -10, -1, 0 };
+				for (size_t iThr = 0; iThr < CountOfTasks; iThr++)
+				{
+					RayThreads[iThr] = new std::thread([this, Amount, iThr, &Rays, &Scheme, LightPoint]() {
+						for (size_t iRay = Amount / CountOfTasks * iThr; iRay < Amount / CountOfTasks * (iThr + 1); iRay++)
+							CheckRayByThread(&Rays[iRay], &Scheme[iRay], LightPoint);
+						});
+				}
+				for (size_t iThr = 0; iThr < CountOfTasks; iThr++)
+				{
+					RayThreads[iThr]->join();
+					delete RayThreads[iThr];
+				}
+				for (size_t iThr = 0; iThr < CountOfTasks; iThr++)
+				{
+
 				}
 
 				return Scheme;

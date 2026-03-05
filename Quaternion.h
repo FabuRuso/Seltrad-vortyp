@@ -78,9 +78,38 @@ namespace Seltrad {
 				return Res;
 			}
 
+			bool operator==(const Quaternion& _Other) const {
+				if ((X == _Other.X) and (Y == _Other.Y) and (Z == _Other.Z) and (W == _Other.W))
+					return true;
+				else
+					return false;
+			}
+
+			bool operator!=(const Quaternion& _Other) const {
+				if ((X != _Other.X) or (Y != _Other.Y) or (Z != _Other.Z) or (W != _Other.W))
+					return true;
+				else
+					return false;
+			}
+
+			static constexpr Quaternion ZeroRotation(void) {
+				return Quaternion(0, 0, 0, 1, 0);
+			}
+
 		private:
 			Quaternion(void) :X{ 0 }, Y{ 0 }, Z{ 0 }, W{ 0 } {
 
+			}
+
+			constexpr Quaternion(float _X, float _Y, float _Z, float _W, float) :
+				X{ _X },
+				Y{ _Y },
+				Z{ _Z },
+				W{ _W } {
+				Coords[0] = _X;
+				Coords[1] = _Y;
+				Coords[2] = _Z;
+				Coords[3] = _W;
 			}
 		};
 	}

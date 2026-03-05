@@ -11,7 +11,7 @@ Seltrad::Engine::Volumizer MAIN;
 float Mouse_Sense = 0.001;
 float KB_Sence = 0.1;
 
-void inputeventer(void) {
+void inputeventer(bool* Running) {
 	POINT
 		cur_point  = { 0,0 },
 		last_point = { 0,0 };
@@ -40,6 +40,8 @@ void inputeventer(void) {
 			s += KB_Sence;
 		if (GetAsyncKeyState(VK_ESCAPE) & 0x1)
 			Occup = !Occup;
+		if (GetAsyncKeyState(VK_F4) & 0x1)
+			*Running = false;
 		MAIN.MainPlayer.Move(f, s);
 		Sleep(10);
 	}
@@ -67,19 +69,36 @@ wchar_t GetBrightChar(float _V) {
 	return Res;
 }
 
+void SetFontSize(HANDLE h, Seltrad::INT::uint8t Height) {
+	CONSOLE_FONT_INFOEX CFI = {};
+	CFI.cbSize = sizeof(CFI);
+	GetCurrentConsoleFontEx(h, 0, &CFI);
+	CFI.dwFontSize = { 0, Height};
+	wcscpy_s(CFI.FaceName, L"Consolas");
+	bool check;
+	check = SetCurrentConsoleFontEx(h, 0, &CFI);
+	if (!check)
+		wprintf(L"%i %i\n", check, GetLastError());
+}
+
 int main()
 {
-	std::thread Inputer{ inputeventer };
+	bool Running = true;
+	std::thread Inputer{ inputeventer, &Running };
 
 	HANDLE handle = GetStdHandle(-11);
 
 	SetCursorVisible(false);
-	keybd_event(VK_F11, NULL, NULL, 0);
-	Sleep(50);
-	
+
 	SetConsoleCP(65001);
 	SetConsoleOutputCP(65001);
 	_setmode(_fileno(stdout), _O_U16TEXT);
+
+	SetFontSize(handle, 2);
+
+	keybd_event(VK_F11, NULL, NULL, 0);
+
+	Sleep(100);
 
 	CONSOLE_SCREEN_BUFFER_INFO CSBI;
 	GetConsoleScreenBufferInfo(handle, &CSBI);
@@ -101,7 +120,7 @@ int main()
 		FrameEnd = 0;
 	float
 		FPS = 0;
-	while (true) {
+	while (Running) {
 		FrameStart = clock();
 		ganz = L"";
 		start = clock();
@@ -111,30 +130,30 @@ int main()
 		Engining = end - start;
 
 		start = clock();
-		_flushall();
+		//_flushall();
 		//SetConsoleCursorPosition(handle, { 0,0 });
-			for (size_t Sy = 0; Sy < ScreenSize.Y; Sy++) {
-				for (size_t Sx = 0; Sx < ScreenSize.X; Sx++) {
-					float
-						ScreenX = ScreenSize.X,
-						ScreenY = ScreenSize.Y,
-						ImageX = ImageSize.X,
-						ImageY = ImageSize.Y;
-					int ix = (int)(Sx * ImageX / ScreenX);
-					int iy = (int)(Sy * ImageY / ScreenY);
-					int index = iy * ImageX + ix;
-					Screen[Sy][Sx] = GetBrightChar(Raw[index]);
-				}
-				Screen[Sy][ScreenSize.X] = '\n';
-				Screen[Sy][ScreenSize.X + 1] = 0;
-				ganz += Screen[Sy];
+		for (size_t Sy = 0; Sy < ScreenSize.Y; Sy++) {
+			for (size_t Sx = 0; Sx < ScreenSize.X; Sx++) {
+				float
+					ScreenX = ScreenSize.X,
+					ScreenY = ScreenSize.Y,
+					ImageX = ImageSize.X,
+					ImageY = ImageSize.Y;
+				int ix = (int)(Sx * ImageX / ScreenX);
+				int iy = (int)(Sy * ImageY / ScreenY);
+				int index = iy * ImageX + ix;
+				Screen[Sy][Sx] = GetBrightChar(Raw[index]);
 			}
-			//wprintf(ganz.c_str());
-			WriteConsoleW(handle, ganz.c_str(), ganz.length(), nullptr, nullptr);
+			Screen[Sy][ScreenSize.X] = '\n';
+			Screen[Sy][ScreenSize.X + 1] = 0;
+			ganz += Screen[Sy];
+		}
+		//wprintf(ganz.c_str());
+		WriteConsoleW(handle, ganz.c_str(), ganz.length(), nullptr, nullptr);
 		end = clock();
 		Consoling = end - start;
-		
-		SetConsoleCursorPosition(handle, { 0,0 });
+
+		/*SetConsoleCursorPosition(handle, { 0,0 });
 		auto View = MAIN.MainPlayer.getView();
 		auto Pos = MAIN.MainPlayer.getPos();
 		wprintf(
@@ -146,9 +165,17 @@ int main()
 			Consoling * 1.f / Engining,
 			Consoling / 1000.f,
 			FPS
-		);
+		);*/
 		FrameEnd = clock();
-		FPS = 1.f / (1.f*FrameEnd - FrameStart) * 1000;
-		Sleep(20);
+		FPS = 1.f / (1.f * FrameEnd - FrameStart) * 1000;
 	}
+	SetConsoleCursorPosition(handle, { 0,0 });
+	SetFontSize(handle, 16);
+	Sleep(100);
+	wprintf(
+		L"FPSonExit: %0.2f\n"
+		L"EnginePSonExit: %i\n"
+		L"ConsolePSonExit: %i\n",
+		FPS, Engining, Consoling
+	);
 }
